@@ -1,0 +1,21 @@
+#Run upgraded ninjaIndex pipeline with multiple BAM files ( latest version )
+nextflow run -resume main.nf --genomes 's3://czbiohub-microbiome/test/3genomes/*.fna' \
+--outdir 's3://czbiohub-microbiome/test10' \
+-profile czbiohub_aws
+
+# Run test case on a local machine
+nextflow run main.nf -profile test
+
+
+# aws batch example
+```{bash}
+aws batch submit-job \
+    --profile maf \
+    --job-name nf-ninjaIndex \
+    --job-queue priority-maf-pipelines \
+    --job-definition nextflow-production \
+    --container-overrides command=s3://nextflow-pipelines/ninjaindex,\
+"--genomes", "s3:///3genomes/*.fna", \
+"--outdir","s3://genomics-workflow-core/Results/NinjaIndex/Min",\
+"--db","Min_v1"
+```
