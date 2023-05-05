@@ -13,7 +13,7 @@ aws batch submit-job \
     --job-name nf-ninjaIndex \
     --job-queue priority-maf-pipelines \
     --job-definition nextflow-production \
-    --container-overrides command="FischbachLab/ninjaindex,\
+    --container-overrides command="FischbachLab/nf-ninjaindex,\
 "--genomes", "s3://3genomes/*.fna", \
 "--outdir","s3://genomics-workflow-core/Results/NinjaIndex/Min",\
 "--db","Min1" "
