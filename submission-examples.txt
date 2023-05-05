@@ -10,12 +10,11 @@ nextflow run main.nf -profile test
 # aws batch example
 ```{bash}
 aws batch submit-job \
-    --profile maf \
     --job-name nf-ninjaIndex \
     --job-queue priority-maf-pipelines \
     --job-definition nextflow-production \
-    --container-overrides command=s3://nextflow-pipelines/ninjaindex,\
-"--genomes", "s3:///3genomes/*.fna", \
+    --container-overrides command="FischbachLab/ninjaindex,\
+"--genomes", "s3://3genomes/*.fna", \
 "--outdir","s3://genomics-workflow-core/Results/NinjaIndex/Min",\
-"--db","Min_v1"
+"--db","Min1" "
 ```
