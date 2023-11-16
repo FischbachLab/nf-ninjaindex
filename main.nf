@@ -1,5 +1,5 @@
 #!/usr/bin/env nextflow
- nextflow.enable.dsl=1
+ nextflow.enable.dsl=2
 /*
 ========================================================================================
                          nf-core/ninjaindex
@@ -85,18 +85,6 @@ if( workflow.profile == 'awsbatch'){ // || workflow.profile == 'czbiohub_aws' ) 
 // Stage config files
 //ch_output_docs = Channel.fromPath("$baseDir/docs/output.md")
 
-/*
- * Create a channel for input genome files
- */
-Channel
-  	.fromPath(params.genomes)
-  	.ifEmpty { exit 1, "Cannot find matching genomes" }
-  	//.println()
-
-genome_files = Channel.fromPath(params.genomes)
-//split it into three channels
-genome_files.into {genomes_ch2; genomes_ch3; genomes_ch4; genomes_ch5}
-
 
 // Header log info
 log.info nfcoreHeader()
@@ -174,16 +162,10 @@ process get_software_versions {
 
 
 /**
-	STEP 1.1
+	STEP 1.0
     Concatenate the reference genomes into a single fasta file.
 */
 
-genomes_combined = Channel
-    			.fromPath(params.genomes)
-    			.collectFile(name: 'all_genomes.fa')
-
-//split it into two channels
-genomes_combined.into { genomes_combined1; genomes_combined2 }
 /*
 *
     STEP 1.1
@@ -224,9 +206,9 @@ process art_fastq {
 	publishDir "${params.outdir}/art_fastqs", mode:'copy'
 
   input:
-  file fna from genomes_ch2
+  path fna
   output:
-  set file ("tmp_*/Sync/paired_fastq/${fna.baseName}.R1.fastq.gz"), file ("tmp_*/Sync/paired_fastq/${fna.baseName}.R2.fastq.gz") into zipped_fq
+  tuple path("tmp_*/Sync/paired_fastq/${fna.baseName}.R1.fastq.gz"), path("tmp_*/Sync/paired_fastq/${fna.baseName}.R2.fastq.gz")
 
   script:
   """
@@ -234,17 +216,6 @@ process art_fastq {
   """
 }
 
-//split it into two channels
-zipped_fq.into { zipped_fq1; zipped_fq2 }
-
-// Sort files in channels to match fastq vs. genomes
-zipped_fq2
-         .toSortedList { file -> file[0].name }
-				 .flatten()
-				 .buffer( size: 2 )
-				 .set{ sorted_zipped_fq }
-
-sorted_zipped_fq.into { sorted_zipped_fq1; sorted_zipped_fq2 }
 
 /*
 *
@@ -259,12 +230,12 @@ process bowtie2_mapping {
     tag "$fq1"
 		publishDir "${params.outdir}/bowtie2_mapping", mode:'copy'
     input:
-    file all_genome from genomes_combined1.collect()
-		set file(fq1), file(fq2) from sorted_zipped_fq1
+    path all_genome
+		tuple path(fq1), path(fq2)
 
     output:
-    file "tmp_*/Sync/bowtie2/*.name_sorted.markdup.bam" into bam_ch
-    file "tmp_*/Sync/bowtie2/*.name_sorted.markdup.bam.bai" into bai_ch
+    path "tmp_*/Sync/bowtie2/*.name_sorted.markdup.bam", emit: bam_ch
+    path "tmp_*/Sync/bowtie2/*.name_sorted.markdup.bam.bai", emit: bai_ch
 
     script:
     """
@@ -272,10 +243,7 @@ process bowtie2_mapping {
     """
 }
 
-genomes_ch5
-				.toSortedList{file -> file.name }
-				.flatten()
-				.set{sorted_genome_ch}
+
 
 /*
 STEP 3
@@ -293,21 +261,23 @@ process generate_Ninja_Index {
   errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
   maxRetries 2
 
-  tag "$bam"
+  tag "${params.db}"
 	publishDir "${params.outdir}/ninjaIndex", mode:'copy'
 
   input:
-  file 'fasta-dir/*' from genomes_ch4.toSortedList()
-  file 'bam-dir/*' from bam_ch.toSortedList()
-  file 'bam-dir/*' from bai_ch.toSortedList()
+  path 'fasta-dir/*'
+  path 'bam-dir/*'
+  path 'bam-dir/*'
 
   output:
-  file "tmp_*/Sync/ninjaIndex/*.ninjaIndex.binmap.csv"
-  file "tmp_*/Sync/ninjaIndex/*.ninjaIndex.fasta"
+  path "*.ninjaIndex.binmap.csv"
+  //path "tmp_*/Sync/ninjaIndex/*.ninjaIndex.binmap.csv"
+  //path "tmp_*/Sync/ninjaIndex/*.ninjaIndex.fasta"
 
   script:
   """
 	ninjaIndex_multiBams.sh fasta-dir bam-dir "${params.db}"
+  mv tmp_*/Sync/ninjaIndex/*.ninjaIndex.binmap.csv .
   """
 }
 
@@ -336,6 +306,33 @@ process output_documentation {
     """
 }
 */
+
+workflow {
+
+    genome_files = Channel
+      	.fromPath(params.genomes)
+      	.ifEmpty { exit 1, "Cannot find matching genomes" }
+
+    genomes_combined = Channel
+        			.fromPath(params.genomes)
+        			.collectFile(name: 'all_genomes.fa')
+
+    genome_files | art_fastq
+
+    // Sort files in channels to match fastq vs. genomes
+    sorted_zipped_fq = art_fastq.out
+             .toSortedList { file -> file[0].name }
+    				 .flatten()
+    				 .buffer( size: 2 )
+
+    bowtie2_mapping( genomes_combined.collect(), sorted_zipped_fq )
+
+    generate_Ninja_Index( genome_files.toSortedList(), bowtie2_mapping.out.bam_ch.toSortedList(), bowtie2_mapping.out.bai_ch.toSortedList() )
+
+}
+
+
+
 
 
 /*

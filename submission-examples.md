@@ -25,5 +25,5 @@ aws batch submit-job \
 
 ## Example path to the final ninjaIndex file on s3
 ```{bash}
-s3://genomics-workflow-core/Results/NinjaIndex/test-3genomes/ninjaIndex/tmp_20230505_184742/Sync/ninjaIndex/test3.ninjaIndex.binmap.csv
+s3://genomics-workflow-core/Results/NinjaIndex/test-3genomes/ninjaIndex/test3.ninjaIndex.binmap.csv
 ```
