@@ -1,4 +1,4 @@
-nf-ninjaIndex - Create an ninjaIndex for [nf-ninjaMap] (https://github.com/FischbachLab/nf-ninjamap)
+nf-ninjaIndex - Create an ninjaIndex for [nf-ninjaMap](https://github.com/FischbachLab/nf-ninjamap)
 ====================
 
 # Procedure for building an ninja index directory for ninjaMap
@@ -18,7 +18,7 @@ Acidaminococcus-fermentans-DSM-20731-MAF-2,/path/to/HCom2_20221117/genomes/Acida
 Acidaminococcus-sp-D21-MAF-2,path/to/HCom2_20221117/genomes/Acidaminococcus-sp-D21-MAF-2.fna
 ........
 ```
-After running the above script successfully, you should see two folders, fasta and db. The former contains all reformated stains in fna and the latter contains all the db related files.
+After running the above script successfully, you should see two folders, fasta and db. The former contains all the reformated strains, and the latter contains all the db related files.
 
 1. Build a binmap file in the db folder and rename it depending on your project, e.g., HCom2.ninjaIndex.binmap.csv
 Please see the job submission examples in [building ninjaIndex](submission-examples.md)
@@ -38,7 +38,7 @@ mkdir -p bowtie2_index
 mv *bt2 bowtie2_index
 ```
 
-3.Copy the Binmap file and bowtie2 index files to the database folder
+3. Copy the Binmap file and bowtie2 index files to the database folder
 
 # Index directory structure
 
