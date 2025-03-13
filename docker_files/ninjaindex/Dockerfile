@@ -9,10 +9,11 @@ ENV PATH /opt/conda/envs/nf-core-ninjaindex-1.0dev/bin:$PATH
 
 # Update conda to latest version.
 #RUN conda update -n nf-core-ninjaindex-1.0dev -c defaults conda
+#RUN apt-get update && apt-get install -y libncurses5
 
 # Install picard samtools bamtools biopython
-RUN conda install -c bioconda picard
-RUN conda install -c bioconda -y bamtools samtools
+#RUN conda install -c bioconda picard
+#RUN conda install -c bioconda -y bamtools samtools
 RUN conda install -c conda-forge -y awscli biopython
 
 

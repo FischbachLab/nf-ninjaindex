@@ -1,12 +1,15 @@
 #!/usr/bin/env nextflow
- nextflow.enable.dsl=2
+nextflow.enable.dsl=2
+
+include { art_fastq; bowtie2_mapping; generate_Ninja_Index} from './modules/generate_index'
+include { get_software_versions_index; get_software_versions_art; get_software_versions_bowtie2} from './modules/house_keeping'
 /*
 ========================================================================================
-                         nf-core/ninjaindex
+                         FischbachLab/nf-ninjaindex
 ========================================================================================
- nf-core/ninjaindex Analysis Pipeline.
+ FischbachLab/nf-ninjaindex Analysis Pipeline.
  #### Homepage / Documentation
- https://github.com/nf-core/ninjaindex
+https://github.com/FischbachLab/nf-ninjaindex/
 ----------------------------------------------------------------------------------------
 */
 
@@ -133,206 +136,6 @@ ${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style
 
    return yaml_file
 }
-
-
-/*
- * Parse software version numbers
- */
-process get_software_versions {
-    errorStrategy 'ignore'
-    publishDir "${params.outdir}/pipeline_info", mode: 'copy',
-    saveAs: {filename ->
-        if (filename.indexOf(".csv") > 0) filename
-        else null
-    }
-
-    output:
-    file 'software_versions_ninja.yaml' into software_versions_yaml
-    file "software_versions.csv"
-
-    script:
-    // TODO nf-core: Get all tools to print their version number here
-    """
-    echo $workflow.manifest.version > v_pipeline.txt
-    echo $workflow.nextflow.version > v_nextflow.txt
-    scrape_software_versions.py &> software_versions_ninja.yaml
-    """
-}
-
-
-
-/**
-	STEP 1.0
-    Concatenate the reference genomes into a single fasta file.
-*/
-
-/*
-*
-    STEP 1.1
-    Run biogrinder on individual genomes to obtain fastq files with
-    predetermined uniform coverage (usually 10x)
-		Copy fastq files to S3 bucket
-*/
-
-/*process grinder_fastq {
-
-  tag "$fna"
-	publishDir "${params.outdir}/biogrinder_fastqs", mode:'copy'
-
-  input:
-  file fna from genomes_ch2
-  output:
-  */
-  //set file ("tmp_*/Sync/paired_fastq/${fna.baseName}.R1.fastq.gz"), file ("tmp_*/Sync/paired_fastq/${fna.baseName}.R2.fastq.gz") into zipped_fq
-  //file "${fna.baseName}.fq" into fastq_ch
-/*
-  script:
-  """
-  run_grinder.sh $fna
-  """
-}
-*/
-
-/*
-STEP 1.2
-ART generaes synthetic reads instead of grinder
-generate reads in fastq with zero-sequencing errors for a paired-end read simulation
-The 2nd parameter is used to change the coverage
-*/
-
-process art_fastq {
-
-  tag "$fna"
-	publishDir "${params.outdir}/art_fastqs", mode:'copy'
-
-  input:
-  path fna
-  output:
-  tuple path("tmp_*/Sync/paired_fastq/${fna.baseName}.R1.fastq.gz"), path("tmp_*/Sync/paired_fastq/${fna.baseName}.R2.fastq.gz")
-
-  script:
-  """
-  run_art.sh $fna 10
-  """
-}
-
-
-/*
-*
-   STEP 2
-   Generate the bowtie2 index for each filtered genome
-	 and align each fastq PE file to the corresponding filtered genomes
-     file filtered_fa from sorted_filtered_genome_ch
-*/
-
-process bowtie2_mapping {
-    cpus 16
-    tag "$fq1"
-		publishDir "${params.outdir}/bowtie2_mapping", mode:'copy'
-    input:
-    path all_genome
-		tuple path(fq1), path(fq2)
-
-    output:
-    path "tmp_*/Sync/bowtie2/*.name_sorted.markdup.bam", emit: bam_ch
-    path "tmp_*/Sync/bowtie2/*.name_sorted.markdup.bam.bai", emit: bai_ch
-
-    script:
-    """
-    run_bowtie2_origin.sh $all_genome $fq1 $fq2 &> bowtie2.log
-    """
-}
-
-
-
-/*
-STEP 3
-  		Generate final Ninja Index based on the merged bam file
-      NinjaIndex need bam index in the same direcroty even though the script
-      doesn't require the index as an input parameter
-      This step may need more memory to process
-*/
-process generate_Ninja_Index {
-
-  cpus 32
-  memory { 250.GB * task.attempt }
-  time { 4.hour * task.attempt }
-
-  errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
-  maxRetries 2
-
-  tag "${params.db}"
-	publishDir "${params.outdir}/ninjaIndex", mode:'copy'
-
-  input:
-  path 'fasta-dir/*'
-  path 'bam-dir/*'
-  path 'bam-dir/*'
-
-  output:
-  path "*.ninjaIndex.binmap.csv"
-  //path "tmp_*/Sync/ninjaIndex/*.ninjaIndex.binmap.csv"
-  //path "tmp_*/Sync/ninjaIndex/*.ninjaIndex.fasta"
-
-  script:
-  """
-	ninjaIndex_multiBams.sh fasta-dir bam-dir "${params.db}"
-  mv tmp_*/Sync/ninjaIndex/*.ninjaIndex.binmap.csv .
-  """
-}
-
-
-/*
- * STEP 6 - Output Description HTML
- */
-/*
-if [ -e bamfiles.list ]
-then
-  touch uniform.merged.bam
-
-fi
-process output_documentation {
-    publishDir "${params.outdir}/pipeline_info", mode: 'copy'
-
-    input:
-    file output_docs from ch_output_docs
-
-    output:
-    file "results_description.html"
-
-    script:
-    """
-    markdown_to_html.r $output_docs results_description.html
-    """
-}
-*/
-
-workflow {
-
-    genome_files = Channel
-      	.fromPath(params.genomes)
-      	.ifEmpty { exit 1, "Cannot find matching genomes" }
-
-    genomes_combined = Channel
-        			.fromPath(params.genomes)
-        			.collectFile(name: 'all_genomes.fa')
-
-    genome_files | art_fastq
-
-    // Sort files in channels to match fastq vs. genomes
-    sorted_zipped_fq = art_fastq.out
-             .toSortedList { file -> file[0].name }
-    				 .flatten()
-    				 .buffer( size: 2 )
-
-    bowtie2_mapping( genomes_combined.collect(), sorted_zipped_fq )
-
-    generate_Ninja_Index( genome_files.toSortedList(), bowtie2_mapping.out.bam_ch.toSortedList(), bowtie2_mapping.out.bai_ch.toSortedList() )
-
-}
-
-
-
 
 
 /*
@@ -473,4 +276,36 @@ def checkHostname(){
             }
         }
     }
+}
+
+workflow {
+
+    get_software_versions_index()
+    get_software_versions_art()
+    get_software_versions_bowtie2()
+
+    get_software_versions_index.out
+    .concat(get_software_versions_art.out, get_software_versions_bowtie2.out ).collectFile(name: "software_versions_ninjaindex.yaml", storeDir: "${params.outdir}/pipeline_info")  
+
+
+    genome_files = Channel
+      	.fromPath(params.genomes)
+      	.ifEmpty { exit 1, "Cannot find matching genomes" }
+
+    genomes_combined = Channel
+        			.fromPath(params.genomes)
+        			.collectFile(name: 'all_genomes.fa')
+
+    genome_files | art_fastq
+
+    // Sort files in channels to match fastq vs. genomes
+    sorted_zipped_fq = art_fastq.out
+             .toSortedList { file -> file[0].name }
+    				 .flatten()
+    				 .buffer( size: 2 )
+
+    bowtie2_mapping( genomes_combined.collect(), sorted_zipped_fq )
+
+    generate_Ninja_Index( genome_files.toSortedList(), bowtie2_mapping.out.bam_ch.toSortedList(), bowtie2_mapping.out.bai_ch.toSortedList() )
+
 }
