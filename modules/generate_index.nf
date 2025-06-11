@@ -39,6 +39,9 @@ The 2nd parameter is used to change the coverage
 
 process art_fastq {
 
+  errorStrategy 'retry' 
+  maxRetries 2
+
   tag "$fna"
   container params.container_art
   publishDir "${params.outdir}/art_fastqs", mode:'copy'
@@ -64,6 +67,9 @@ process art_fastq {
 */
 
 process bowtie2_mapping {
+
+    errorStrategy 'retry' 
+    maxRetries 2
 
     container params.container_bowtie2
     cpus 16
