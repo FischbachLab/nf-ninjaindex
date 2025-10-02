@@ -1,7 +1,7 @@
-nf-ninjaIndex - Create an ninjaIndex for [nf-ninjaMap](https://github.com/FischbachLab/nf-ninjamap)
+nf-ninjaIndex - Create a ninjaIndex for [nf-ninjaMap](https://github.com/FischbachLab/nf-ninjamap)
 ====================
 
-# Procedure for building an ninja index directory for ninjaMap
+# Procedure for building a ninja index directory for ninjaMap
 
 0. Copy all genomes into a folder, e.g., genomes/, then the following script to create the required index files
 
